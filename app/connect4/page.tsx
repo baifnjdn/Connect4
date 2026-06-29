@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useReducer, useState } from "react";
+import Link from "next/link";
 
 const ROWS = 6;
 const COLS = 7;
@@ -42,10 +43,10 @@ function checkWin(
   player: 1 | 2,
 ): boolean {
   const directions = [
-    [0, 1],   // horizontal
-    [1, 0],   // vertical
-    [1, 1],   // diagonal down-right
-    [1, -1],  // diagonal down-left
+    [0, 1], // horizontal
+    [1, 0], // vertical
+    [1, 1], // diagonal down-right
+    [1, -1], // diagonal down-left
   ];
 
   for (const [dr, dc] of directions) {
@@ -160,7 +161,14 @@ export default function Connect4Page() {
       : `Player ${currentPlayer}'s Turn`;
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-8">
+    <main className="relative flex min-h-screen flex-col items-center justify-center gap-6 p-8">
+      <Link
+        href="/"
+        className="absolute left-8 top-8 rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+      >
+        ← Home
+      </Link>
+
       <h1 className="text-3xl font-bold tracking-tight">{titleText}</h1>
 
       <div className="relative overflow-hidden rounded-xl bg-blue-700 p-4 shadow-lg">
