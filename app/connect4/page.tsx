@@ -1,6 +1,14 @@
 "use client";
 
-import React, { useCallback, useReducer, useState } from "react";
+import React, {
+  Suspense,
+  useCallback,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 const ROWS = 6;
 const COLS = 7;
@@ -42,10 +50,10 @@ function checkWin(
   player: 1 | 2,
 ): boolean {
   const directions = [
-    [0, 1],   // horizontal
-    [1, 0],   // vertical
-    [1, 1],   // diagonal down-right
-    [1, -1],  // diagonal down-left
+    [0, 1], // horizontal
+    [1, 0], // vertical
+    [1, 1], // diagonal down-right
+    [1, -1], // diagonal down-left
   ];
 
   for (const [dr, dc] of directions) {
@@ -141,26 +149,63 @@ const initialState: GameState = {
   moveCount: 0,
 };
 
-export default function Connect4Page() {
+function Connect4Game() {
+  const searchParams = useSearchParams();
+  const mode = searchParams.get("mode") || "pvp";
+  const difficulty = searchParams.get("difficulty") || "medium";
+  void difficulty;
+
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const { board, currentPlayer, winner, draw, lastMove, moveCount } = state;
   const [hoveredCol, setHoveredCol] = useState<number | null>(null);
+  const [isAIThinking, setIsAIThinking] = useState(false);
+  const aiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleColumnClick = useCallback(
-    (col: number) => dispatch({ type: "DROP", col }),
-    [],
+    (col: number) => {
+      if (isAIThinking) return;
+      dispatch({ type: "DROP", col });
+      if (mode === "pvai") {
+        setIsAIThinking(true);
+        aiTimeoutRef.current = setTimeout(() => {
+          dispatch({ type: "DROP", col });
+          setIsAIThinking(false);
+          aiTimeoutRef.current = null;
+        }, 600);
+      }
+    },
+    [mode, isAIThinking],
   );
 
-  const handleRestart = useCallback(() => dispatch({ type: "RESTART" }), []);
+  const handleRestart = useCallback(() => {
+    setIsAIThinking(false);
+    if (aiTimeoutRef.current) {
+      clearTimeout(aiTimeoutRef.current);
+      aiTimeoutRef.current = null;
+    }
+    dispatch({ type: "RESTART" });
+  }, []);
+
+  const p1name = mode === "pvp" ? "Player 1" : "Player";
+  const p2name = mode === "pvp" ? "Player 2" : "AI";
+
+  const currentPlayerName = currentPlayer == 1 ? p1name : p2name;
 
   const titleText = winner
-    ? `Player ${winner} Wins!`
+    ? `${currentPlayerName} Wins!`
     : draw
       ? "It's a Draw!"
-      : `Player ${currentPlayer}'s Turn`;
+      : `${currentPlayerName}'s Turn`;
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-8">
+      <Link
+        href="/"
+        className="absolute left-8 top-8 rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+      >
+        ← Home
+      </Link>
+
       <h1 className="text-3xl font-bold tracking-tight">{titleText}</h1>
 
       <div className="relative overflow-hidden rounded-xl bg-blue-700 p-4 shadow-lg">
@@ -168,6 +213,7 @@ export default function Connect4Page() {
         {hoveredCol !== null &&
           !winner &&
           !draw &&
+          !isAIThinking &&
           board[0][hoveredCol] === 0 && (
             <div
               aria-hidden
@@ -179,7 +225,9 @@ export default function Connect4Page() {
           {board.map((row, rowIdx) => (
             <div key={rowIdx} className="flex gap-1">
               {row.map((cell, colIdx) => {
-                const isClickable = !winner && !draw && board[0][colIdx] === 0;
+                const isCellAvailable =
+                  !winner && !draw && board[0][colIdx] === 0;
+                const canClick = isCellAvailable && !isAIThinking;
                 const isLastMove =
                   lastMove?.row === rowIdx && lastMove?.col === colIdx;
 
@@ -187,13 +235,13 @@ export default function Connect4Page() {
                   <button
                     key={colIdx}
                     type="button"
-                    disabled={!isClickable}
+                    disabled={!canClick}
                     onClick={() => handleColumnClick(colIdx)}
                     onMouseEnter={() => setHoveredCol(colIdx)}
                     onMouseLeave={() => setHoveredCol(null)}
                     className={[
                       "flex size-12 items-center justify-center rounded-full border-2 transition-all sm:size-14",
-                      isClickable
+                      isCellAvailable
                         ? "cursor-pointer border-blue-400 bg-white/90"
                         : "cursor-default border-blue-400 bg-white/70",
                     ].join(" ")}
@@ -240,5 +288,19 @@ export default function Connect4Page() {
         </button>
       )}
     </main>
+  );
+}
+
+export default function Connect4Page() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center p-8">
+          <p className="text-lg text-gray-500">Loading…</p>
+        </main>
+      }
+    >
+      <Connect4Game />
+    </Suspense>
   );
 }
