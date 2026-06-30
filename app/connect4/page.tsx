@@ -3,6 +3,7 @@
 import React, {
   Suspense,
   useCallback,
+  useEffect,
   useReducer,
   useRef,
   useState,
@@ -87,6 +88,218 @@ function isBoardFull(board: Board): boolean {
   return board[0].every((cell) => cell !== 0);
 }
 
+/** All 69 possible 4-cell windows on a 6×7 board (precomputed for performance). */
+function buildWindows(): [number, number][][] {
+  const windows: [number, number][][] = [];
+  // Horizontal
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c <= COLS - 4; c++) {
+      windows.push([
+        [r, c],
+        [r, c + 1],
+        [r, c + 2],
+        [r, c + 3],
+      ]);
+    }
+  }
+  // Vertical
+  for (let c = 0; c < COLS; c++) {
+    for (let r = 0; r <= ROWS - 4; r++) {
+      windows.push([
+        [r, c],
+        [r + 1, c],
+        [r + 2, c],
+        [r + 3, c],
+      ]);
+    }
+  }
+  // Diagonal down-right
+  for (let r = 0; r <= ROWS - 4; r++) {
+    for (let c = 0; c <= COLS - 4; c++) {
+      windows.push([
+        [r, c],
+        [r + 1, c + 1],
+        [r + 2, c + 2],
+        [r + 3, c + 3],
+      ]);
+    }
+  }
+  // Diagonal down-left
+  for (let r = 0; r <= ROWS - 4; r++) {
+    for (let c = 3; c < COLS; c++) {
+      windows.push([
+        [r, c],
+        [r + 1, c - 1],
+        [r + 2, c - 2],
+        [r + 3, c - 3],
+      ]);
+    }
+  }
+  return windows;
+}
+
+const ALL_WINDOWS = buildWindows();
+
+/** Score a single 4-cell window for the given player. */
+function scoreWindow(
+  board: Board,
+  window: [number, number][],
+  player: 1 | 2,
+): number {
+  let aiCount = 0;
+  let oppCount = 0;
+  for (const [r, c] of window) {
+    const cell = board[r][c];
+    if (cell === player) aiCount++;
+    else if (cell !== 0) oppCount++;
+  }
+  // Mixed window — blocked, no value
+  if (aiCount > 0 && oppCount > 0) return 0;
+  if (aiCount === 4) return 10000;
+  if (aiCount === 3) return 100;
+  if (aiCount === 2) return 10;
+  if (aiCount === 1) return 1;
+  if (oppCount === 4) return -10000;
+  if (oppCount === 3) return -100;
+  if (oppCount === 2) return -10;
+  if (oppCount === 1) return -1;
+  return 0;
+}
+
+/** Heuristic evaluation: sum of all window scores from AI's perspective. */
+function evaluateBoard(board: Board, aiPlayer: 1 | 2): number {
+  let score = 0;
+  for (const w of ALL_WINDOWS) {
+    score += scoreWindow(board, w, aiPlayer);
+  }
+  return score;
+}
+
+/** Column order for better alpha-beta pruning: center-first. */
+const COLUMN_ORDER = [3, 2, 4, 1, 5, 0, 6];
+
+function getOrderedMoves(board: Board): number[] {
+  return COLUMN_ORDER.filter((col) => board[0][col] === 0);
+}
+
+/** Minimax with alpha-beta pruning. Mutates board in-place (undoes each move). */
+function minimax(
+  board: Board,
+  depth: number,
+  alpha: number,
+  beta: number,
+  maximizing: boolean,
+  aiPlayer: 1 | 2,
+): number {
+  const validCols = getOrderedMoves(board);
+  if (depth === 0 || validCols.length === 0) {
+    return evaluateBoard(board, aiPlayer);
+  }
+
+  const currentPlayer: 1 | 2 = maximizing ? aiPlayer : aiPlayer === 1 ? 2 : 1;
+
+  if (maximizing) {
+    let maxScore = -Infinity;
+    for (const col of validCols) {
+      const row = dropPiece(board, col, currentPlayer);
+      if (row === -1) continue;
+
+      // Check if this move wins the game immediately for the active player
+      if (checkWin(board, row, col, currentPlayer)) {
+        board[row][col] = 0; // undo
+        return 100000 * 7 ** depth;
+      }
+
+      const score = minimax(board, depth - 1, alpha, beta, false, aiPlayer);
+      board[row][col] = 0; // undo
+      maxScore = Math.max(maxScore, score);
+      alpha = Math.max(alpha, score);
+      if (alpha >= beta) break;
+    }
+    return maxScore;
+  } else {
+    let minScore = Infinity;
+    for (const col of validCols) {
+      const row = dropPiece(board, col, currentPlayer);
+      if (row === -1) continue;
+
+      // Check if this move wins the game immediately for the active player
+      if (checkWin(board, row, col, currentPlayer)) {
+        board[row][col] = 0; // undo
+        return -100000 * 7 ** depth;
+      }
+
+      const score = minimax(board, depth - 1, alpha, beta, true, aiPlayer);
+      board[row][col] = 0; // undo
+      minScore = Math.min(minScore, score);
+      beta = Math.min(beta, score);
+      if (alpha >= beta) break;
+    }
+    return minScore;
+  }
+}
+
+function getDepth(difficulty: string): number {
+  switch (difficulty) {
+    case "easy":
+      return 2;
+    case "medium":
+      return 5;
+    case "hard":
+      return 10;
+    default:
+      return 2;
+  }
+}
+
+/** Returns the best column for the AI to play. */
+function getBestMove(
+  board: Board,
+  aiPlayer: 1 | 2,
+  difficulty: string,
+): number {
+  const validCols = getOrderedMoves(board);
+  if (validCols.length === 0) return -1;
+
+  // 1. Safety check: If the AI can win in 1 move, play it immediately
+  for (const col of validCols) {
+    const row = dropPiece(board, col, aiPlayer);
+    if (row !== -1) {
+      const won = checkWin(board, row, col, aiPlayer);
+      board[row][col] = 0; // undo
+      if (won) {
+        return col;
+      }
+    }
+  }
+
+  // 2. Otherwise, run minimax search to find the best move
+  const depth = getDepth(difficulty);
+  let bestCol = validCols[0];
+  let bestScore = -Infinity;
+
+  for (const col of validCols) {
+    const row = dropPiece(board, col, aiPlayer);
+    if (row !== -1) {
+      const score = minimax(
+        board,
+        depth - 1,
+        -Infinity,
+        Infinity,
+        false,
+        aiPlayer,
+      );
+      board[row][col] = 0; // undo
+      if (score > bestScore) {
+        bestScore = score;
+        bestCol = col;
+      }
+    }
+  }
+
+  return bestCol;
+}
+
 function gameReducer(state: GameState, action: Action): GameState {
   switch (action.type) {
     case "DROP": {
@@ -153,32 +366,44 @@ function Connect4Game() {
   const searchParams = useSearchParams();
   const mode = searchParams.get("mode") || "pvp";
   const difficulty = searchParams.get("difficulty") || "medium";
-  void difficulty;
 
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const { board, currentPlayer, winner, draw, lastMove, moveCount } = state;
   const [hoveredCol, setHoveredCol] = useState<number | null>(null);
-  const [isAIThinking, setIsAIThinking] = useState(false);
   const aiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // AI is thinking when it's Player 2's turn in PvAI mode and the game is still active
+  const isAIThinking =
+    mode === "pvai" && currentPlayer === 2 && !winner && !draw;
+
+  // AI auto-play via effect: fires after board updates to AI's turn
+  useEffect(() => {
+    if (!isAIThinking) return;
+
+    aiTimeoutRef.current = setTimeout(() => {
+      const aiCol = getBestMove(board, 2, difficulty);
+      if (aiCol !== -1) {
+        dispatch({ type: "DROP", col: aiCol });
+      }
+    }, 600);
+
+    return () => {
+      if (aiTimeoutRef.current) {
+        clearTimeout(aiTimeoutRef.current);
+        aiTimeoutRef.current = null;
+      }
+    };
+  }, [isAIThinking, board, difficulty]);
 
   const handleColumnClick = useCallback(
     (col: number) => {
       if (isAIThinking) return;
       dispatch({ type: "DROP", col });
-      if (mode === "pvai") {
-        setIsAIThinking(true);
-        aiTimeoutRef.current = setTimeout(() => {
-          dispatch({ type: "DROP", col });
-          setIsAIThinking(false);
-          aiTimeoutRef.current = null;
-        }, 600);
-      }
     },
-    [mode, isAIThinking],
+    [isAIThinking],
   );
 
   const handleRestart = useCallback(() => {
-    setIsAIThinking(false);
     if (aiTimeoutRef.current) {
       clearTimeout(aiTimeoutRef.current);
       aiTimeoutRef.current = null;
