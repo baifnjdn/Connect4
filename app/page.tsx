@@ -11,21 +11,41 @@ export default function HomePage() {
         Get four in a row to win!
       </p>
 
+      <Link
+        href="/connect4?mode=pvp"
+        className="rounded-lg bg-blue-600 px-8 py-3 text-lg font-semibold text-white shadow transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+      >
+        PvP
+      </Link>
+
       <div className="flex flex-row items-center justify-center gap-8 p-8">
         <Link
-          href="/connect4"
+          href="/connect4?mode=pvai&difficulty=easy"
           className="rounded-lg bg-blue-600 px-8 py-3 text-lg font-semibold text-white shadow transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
         >
-          PvP
+          vs AI (easy)
         </Link>
 
         <Link
-          href=""
+          href="/connect4?mode=pvai&difficulty=medium"
           className="rounded-lg bg-blue-600 px-8 py-3 text-lg font-semibold text-white shadow transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
         >
-          vs AI
+          vs AI (medium)
         </Link>
 
+        <Link
+          href="/connect4?mode=pvai&difficulty=hard"
+          className="rounded-lg bg-blue-600 px-8 py-3 text-lg font-semibold text-white shadow transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          vs AI (hard)
+        </Link>
+
+        <Link
+          href="/connect4?mode=pvai&difficulty=impossible"
+          className="rounded-lg bg-blue-600 px-8 py-3 text-lg font-semibold text-white shadow transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          vs AI (impossible)
+        </Link>
       </div>
     </main>
   );
