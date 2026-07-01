@@ -153,12 +153,12 @@ function scoreWindow(
     if (cell === player) aiCount++;
     else if (cell !== 0) oppCount++;
   }
-  // Mixed window — blocked, no value
+  // More offensive
   if (aiCount > 0 && oppCount > 0) return 0;
-  if (aiCount === 4) return 10000;
-  if (aiCount === 3) return 100;
-  if (aiCount === 2) return 10;
-  if (aiCount === 1) return 1;
+  if (aiCount === 4) return 20000;
+  if (aiCount === 3) return 200;
+  if (aiCount === 2) return 20;
+  if (aiCount === 1) return 2;
   if (oppCount === 4) return -10000;
   if (oppCount === 3) return -100;
   if (oppCount === 2) return -10;
@@ -239,16 +239,18 @@ function minimax(
   }
 }
 
-function getDepth(difficulty: string): number {
+function getDepth(difficulty: string): [number, number] {
   switch (difficulty) {
     case "easy":
-      return 2;
+      return [2, 0.3];
     case "medium":
-      return 5;
+      return [4, 0.2];
     case "hard":
-      return 10;
+      return [6, 0.1];
+    case "impossible":
+      return [10, 0];
     default:
-      return 2;
+      return [2, 0.3];
   }
 }
 
@@ -274,9 +276,12 @@ function getBestMove(
   }
 
   // 2. Otherwise, run minimax search to find the best move
-  const depth = getDepth(difficulty);
+  const [depth, error] = getDepth(difficulty);
+
   let bestCol = validCols[0];
   let bestScore = -Infinity;
+  let secondBestCol = validCols[0];
+  let secondBestScore = -Infinity;
 
   for (const col of validCols) {
     const row = dropPiece(board, col, aiPlayer);
@@ -291,13 +296,28 @@ function getBestMove(
       );
       board[row][col] = 0; // undo
       if (score > bestScore) {
+        secondBestScore = bestScore;
+        secondBestCol = bestCol;
+
         bestScore = score;
         bestCol = col;
+      } else if (score > secondBestScore) {
+        secondBestScore = score;
+        secondBestCol = col;
       }
     }
   }
-
-  return bestCol;
+  // simulate people making "mistakes"
+  // const errorTriggerd = Math.random() < error;
+  // console.log(errorTriggerd);
+  // console.log(secondBestCol);
+  // console.log(bestCol);
+  // if (errorTriggerd) {
+  //   return secondBestCol;
+  // } else {
+  //   return bestCol;
+  // }
+  return Math.random() > error ? bestCol : secondBestCol;
 }
 
 function gameReducer(state: GameState, action: Action): GameState {

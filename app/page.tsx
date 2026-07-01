@@ -39,6 +39,13 @@ export default function HomePage() {
         >
           vs AI (hard)
         </Link>
+
+        <Link
+          href="/connect4?mode=pvai&difficulty=impossible"
+          className="rounded-lg bg-blue-600 px-8 py-3 text-lg font-semibold text-white shadow transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          vs AI (impossible)
+        </Link>
       </div>
     </main>
   );
