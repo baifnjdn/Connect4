@@ -392,20 +392,28 @@ function Connect4Game() {
   const [hoveredCol, setHoveredCol] = useState<number | null>(null);
   const aiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // AI is thinking when it's Player 2's turn in PvAI mode and the game is still active
+  // Randomly pick whether AI goes first (Player 1) or second (Player 2)
+  const [aiPlayer, setAiPlayer] = useState<1 | 2>(() =>
+    Math.random() < 0.5 ? 1 : 2,
+  );
+
+  // AI is thinking when it's the AI's turn in PvAI mode and the game is still active
   const isAIThinking =
-    mode === "pvai" && currentPlayer === 2 && !winner && !draw;
+    mode === "pvai" && currentPlayer === aiPlayer && !winner && !draw;
 
   // AI auto-play via effect: fires after board updates to AI's turn
   useEffect(() => {
     if (!isAIThinking) return;
 
+    // No delay on the very first move, otherwise wait for drop animation
+    const delay = moveCount === 0 ? 50 : 600;
+
     aiTimeoutRef.current = setTimeout(() => {
-      const aiCol = getBestMove(board, 2, difficulty);
+      const aiCol = getBestMove(board, aiPlayer, difficulty);
       if (aiCol !== -1) {
         dispatch({ type: "DROP", col: aiCol });
       }
-    }, 600);
+    }, delay);
 
     return () => {
       if (aiTimeoutRef.current) {
@@ -413,7 +421,7 @@ function Connect4Game() {
         aiTimeoutRef.current = null;
       }
     };
-  }, [isAIThinking, board, difficulty]);
+  }, [isAIThinking, board, difficulty, aiPlayer, moveCount]);
 
   const handleColumnClick = useCallback(
     (col: number) => {
@@ -428,19 +436,23 @@ function Connect4Game() {
       clearTimeout(aiTimeoutRef.current);
       aiTimeoutRef.current = null;
     }
+    setAiPlayer(Math.random() < 0.5 ? 1 : 2);
     dispatch({ type: "RESTART" });
   }, []);
 
-  const p1name = mode === "pvp" ? "Player 1" : "Player";
-  const p2name = mode === "pvp" ? "Player 2" : "AI";
-
-  const currentPlayerName = currentPlayer == 1 ? p1name : p2name;
-
   const titleText = winner
-    ? `${currentPlayerName} Wins!`
+    ? mode === "pvp"
+      ? `Player ${winner} Wins!`
+      : winner === aiPlayer
+        ? "AI Wins!"
+        : "You Win!"
     : draw
       ? "It's a Draw!"
-      : `${currentPlayerName}'s Turn`;
+      : mode === "pvp"
+        ? `Player ${currentPlayer}'s Turn`
+        : currentPlayer === aiPlayer
+          ? "AI is thinking…"
+          : "Your Turn";
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-8">
